@@ -28,7 +28,7 @@ struct ContentView: View {
             ForEach(bubbles) { bubble in
                 if !bubble.isPopped {
                     ZStack {
-                        BubbleView(size: 60)
+                        BubbleView(size: 60, style: bubble.style)
                             .scaleEffect(pressedBubbleId == bubble.id ? 1.3 : 1.0)
                             .animation(.easeInOut(duration: 0.3), value: pressedBubbleId)
                     }
@@ -73,7 +73,7 @@ struct ContentView: View {
         for i in 0..<4 {
             let position = generateNonOverlappingPosition(existingPositions: positions, bubbleSize: 60)
             positions.append(position)
-            initialBubbles.append(BubbleState(id: i, isPopped: false, position: position))
+            initialBubbles.append(BubbleState(id: i, isPopped: false, position: position, style: .random))
         }
         
         bubbles = initialBubbles
@@ -136,7 +136,7 @@ struct ContentView: View {
             
             // 添加新泡泡到数组
             withAnimation {
-                bubbles.append(BubbleState(id: newId, isPopped: false, position: newPosition))
+                bubbles.append(BubbleState(id: newId, isPopped: false, position: newPosition, style: .random))
             }
             
             // 如果还需要添加更多泡泡，延迟一秒后再添加下一个
@@ -191,34 +191,96 @@ struct BubbleState: Identifiable {
     var id: Int
     var isPopped: Bool
     var position: CGPoint
+    var style: BubbleStyle // 添加样式属性
+}
+
+// 泡泡样式枚举
+enum BubbleStyle: Int, CaseIterable {
+    case lightBlue, white, rainbow, multiGradient
+    
+    // 获取样式对应的颜色
+    var colors: (main: Color, secondary: Color) {
+        switch self {
+        case .lightBlue:
+            return (.blue.opacity(0.8), .cyan.opacity(0.3))
+        case .white:
+            return (.white.opacity(0.8), .gray.opacity(0.2))
+        case .rainbow:
+            return (.pink.opacity(0.7), .blue.opacity(0.4)) // 实际会在视图中使用彩虹渐变
+        case .multiGradient:
+            return (.purple.opacity(0.7), .orange.opacity(0.4)) // 实际会在视图中使用多色渐变
+        }
+    }
+    
+    // 获取随机样式
+    static var random: BubbleStyle {
+        return BubbleStyle.allCases.randomElement() ?? .lightBlue
+    }
 }
 
 // 泡泡视图
 struct BubbleView: View {
     let size: CGFloat
     @State private var animateScale = false
+    var style: BubbleStyle = .lightBlue // 默认浅蓝色样式
     
     var body: some View {
         ZStack {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [.blue.opacity(0.7), .cyan.opacity(0.4)]),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
+            // 根据不同样式创建不同的背景
+            Group {
+                switch style {
+                case .lightBlue, .white:
+                    // 浅蓝和白色使用简单的双色渐变
                     Circle()
-                        .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                )
-                .overlay(
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [style.colors.main, style.colors.secondary]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                case .rainbow:
+                    // 彩虹色使用彩虹色泡泡样式
+                    // 彩虹色使用渐变
                     Circle()
-                        .fill(Color.white.opacity(0.3))
-                        .frame(width: size * 0.2)
-                        .offset(x: -size * 0.2, y: -size * 0.2)
-                )
-                .shadow(color: .cyan.opacity(0.5), radius: 10)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    .red,
+                                    .orange,
+                                    .yellow,
+                                    .green,
+                                    .blue,
+                                    .purple,
+                                    .pink.opacity(0.7)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                case .multiGradient:
+                    // 渐变混合使用随机多色渐变
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [.purple, .blue, .cyan, .mint, .green]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+            }
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
+            )
+            .overlay(
+                Circle()
+                    .fill(Color.white.opacity(0.3))
+                    .frame(width: size * 0.2)
+                    .offset(x: -size * 0.2, y: -size * 0.2)
+            )
+            .shadow(color: style == .white ? .gray.opacity(0.5) : style.colors.main.opacity(0.5), radius: 10)
         }
         .frame(width: size, height: size)
         .scaleEffect(animateScale ? 1.1 : 1.0)
@@ -226,7 +288,6 @@ struct BubbleView: View {
             withAnimation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                 animateScale.toggle()
             }
-            
         }
     }
 }
