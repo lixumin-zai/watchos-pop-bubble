@@ -30,11 +30,11 @@ struct ContentView: View {
                     ZStack {
                         BubbleView(size: 60)
                             .scaleEffect(pressedBubbleId == bubble.id ? 1.3 : 1.0)
-                            .animation(.easeInOut(duration: 0.5), value: pressedBubbleId)
+                            .animation(.easeInOut(duration: 0.3), value: pressedBubbleId)
                     }
                     .position(bubble.position)
                     .gesture(
-                        LongPressGesture(minimumDuration: 0.5)
+                        LongPressGesture(minimumDuration: 0.3)
                             .onEnded { _ in
                                 popBubble(id: bubble.id)
                             }
@@ -81,7 +81,7 @@ struct ContentView: View {
     
     // 准备音效
     private func prepareAudio() {
-        guard let soundURL = Bundle.main.url(forResource: "pop", withExtension: "mp3") else {
+        guard let soundURL = Bundle.main.url(forResource: "bo", withExtension: "mp3") else {
             print("找不到音效文件")
             return
         }
@@ -101,16 +101,21 @@ struct ContentView: View {
         // 播放音效
         audioPlayer?.play()
         
-        // 触发震动
+        // 触发更强烈的震动
         WKInterfaceDevice.current().play(.click)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            WKInterfaceDevice.current().play(.click)
+        }  // 改为 notification 类型的触觉反馈
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            WKInterfaceDevice.current().play(.click)
+        }  // 改为 notification 类型的触觉反馈
         
         // 更新泡泡状态
         withAnimation(.easeOut(duration: 0.3)) {
             bubbles[index].isPopped = true
         }
-        
-        
     }
+    
     
     // 添加新泡泡，确保场上有4个泡泡
     private func addNewBubblesIfNeeded() {
