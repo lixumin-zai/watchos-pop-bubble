@@ -19,10 +19,31 @@ struct ContentView: View {
     // 在 ContentView 中添加状态变量
     @State private var pressedBubbleId: Int? = nil
     
+    // 爆炸效果相关状态
+    @State private var explosionParticles: [ExplosionParticle] = []
+    @State private var explosionWaves: [ExplosionWave] = []
+    
     var body: some View {
         ZStack {
             // 背景
             Color.black.edgesIgnoringSafeArea(.all)
+            
+            // 爆炸波纹
+            ForEach(explosionWaves) { wave in
+                Circle()
+                    .stroke(wave.color.opacity(wave.opacity), lineWidth: 2)
+                    .frame(width: wave.size, height: wave.size)
+                    .position(wave.position)
+            }
+            
+            // 爆炸粒子
+            ForEach(explosionParticles) { particle in
+                Circle()
+                    .fill(particle.color)
+                    .frame(width: particle.size, height: particle.size)
+                    .position(particle.position)
+                    .opacity(particle.opacity)
+            }
             
             // 泡泡
             ForEach(bubbles) { bubble in
@@ -30,6 +51,8 @@ struct ContentView: View {
                     ZStack {
                         BubbleView(size: 60, style: bubble.style)
                             .scaleEffect(pressedBubbleId == bubble.id ? 1.3 : 1.0)
+                            .scaleEffect(bubble.scale)
+                            .opacity(bubble.opacity)
                             .animation(.easeInOut(duration: 0.3), value: pressedBubbleId)
                     }
                     .position(bubble.position)
@@ -101,18 +124,125 @@ struct ContentView: View {
         // 播放音效
         audioPlayer?.play()
         
-        // 触发更强烈的震动
+        // 触发震动
         WKInterfaceDevice.current().play(.click)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             WKInterfaceDevice.current().play(.click)
-        }  // 改为 notification 类型的触觉反馈
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             WKInterfaceDevice.current().play(.click)
-        }  // 改为 notification 类型的触觉反馈
+        }
         
-        // 更新泡泡状态
-        withAnimation(.easeOut(duration: 0.3)) {
+        // 获取泡泡位置和样式
+        let bubblePosition = bubbles[index].position
+        let bubbleStyle = bubbles[index].style
+        
+        // 创建爆炸粒子
+        createExplosionParticles(at: bubblePosition, style: bubbleStyle)
+        
+        // 创建爆炸波纹
+        createExplosionWaves(at: bubblePosition, style: bubbleStyle)
+        
+        // 更新泡泡状态，添加爆炸动画
+        withAnimation(.easeOut(duration: 0.2)) {
+            bubbles[index].scale = 1.2
+        }
+        
+        // 短暂膨胀后收缩并消失
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.easeIn(duration: 0.15)) {
+                bubbles[index].scale = 0.1
+                bubbles[index].opacity = 0
+            }
+        }
+        
+        // 延迟设置 isPopped 状态，让动画完成后再移除泡泡
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             bubbles[index].isPopped = true
+        }
+    }
+    
+    // 创建爆炸粒子
+    private func createExplosionParticles(at position: CGPoint, style: BubbleStyle) {
+        // 清理旧粒子
+        explosionParticles.removeAll { $0.opacity <= 0.05 }
+        
+        // 获取泡泡颜色
+        let mainColor = style.colors.main
+        let secondaryColor = style.colors.secondary
+        
+        // 创建新粒子
+        let particleCount = Int.random(in: 8...12)
+        
+        for i in 0..<particleCount {
+            // 随机角度和距离
+            let angle = Double.random(in: 0..<(2 * .pi))
+            let distance = CGFloat.random(in: 20...50)
+            
+            // 计算目标位置
+            let targetX = position.x + cos(angle) * distance
+            let targetY = position.y + sin(angle) * distance
+            
+            // 随机选择颜色
+            let color = i % 2 == 0 ? mainColor : secondaryColor
+            
+            // 创建粒子
+            let particle = ExplosionParticle(
+                id: UUID(),
+                position: position,
+                targetPosition: CGPoint(x: targetX, y: targetY),
+                size: CGFloat.random(in: 3...8),
+                color: color,
+                opacity: 1.2,
+                duration: Double.random(in: 0.3...0.6)
+            )
+            
+            explosionParticles.append(particle)
+            
+            // 动画粒子
+            withAnimation(.easeOut(duration: particle.duration)) {
+                if let index = explosionParticles.firstIndex(where: { $0.id == particle.id }) {
+                    explosionParticles[index].position = particle.targetPosition
+                    explosionParticles[index].opacity = 0
+                }
+            }
+        }
+    }
+    
+    // 创建爆炸波纹
+    private func createExplosionWaves(at position: CGPoint, style: BubbleStyle) {
+        // 清理旧波纹
+        explosionWaves.removeAll { $0.opacity <= 0.05 }
+        
+        // 获取泡泡颜色
+        let mainColor = style.colors.main
+        
+        // 创建3个波纹
+        for i in 0..<3 {
+            let delay = Double(i) * 0.1
+            let duration = 0.5
+            
+            let wave = ExplosionWave(
+                id: UUID(),
+                position: position,
+                size: 10,
+                targetSize: 80 + CGFloat(i * 20),
+                color: mainColor,
+                opacity: 0.8,
+                duration: duration
+            )
+            
+            explosionWaves.append(wave)
+            
+            // 延迟启动波纹动画
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                withAnimation(.easeOut(duration: duration)) {
+                    if let index = explosionWaves.firstIndex(where: { $0.id == wave.id }) {
+                        explosionWaves[index].size = wave.targetSize
+                        explosionWaves[index].opacity = 0
+                    }
+                }
+            }
         }
     }
     
@@ -191,7 +321,9 @@ struct BubbleState: Identifiable {
     var id: Int
     var isPopped: Bool
     var position: CGPoint
-    var style: BubbleStyle // 添加样式属性
+    var style: BubbleStyle
+    var scale: CGFloat = 1.0
+    var opacity: CGFloat = 1.0
 }
 
 // 泡泡样式枚举
@@ -310,4 +442,26 @@ extension CGPoint {
 
 #Preview {
     ContentView()
+}
+
+// 爆炸粒子模型
+struct ExplosionParticle: Identifiable {
+    var id: UUID
+    var position: CGPoint
+    var targetPosition: CGPoint
+    var size: CGFloat
+    var color: Color
+    var opacity: CGFloat
+    var duration: Double
+}
+
+// 爆炸波纹模型
+struct ExplosionWave: Identifiable {
+    var id: UUID
+    var position: CGPoint
+    var size: CGFloat
+    var targetSize: CGFloat
+    var color: Color
+    var opacity: CGFloat
+    var duration: Double
 }
