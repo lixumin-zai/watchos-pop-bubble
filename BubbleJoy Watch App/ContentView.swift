@@ -328,7 +328,7 @@ struct BubbleState: Identifiable {
 
 // 泡泡样式枚举
 enum BubbleStyle: Int, CaseIterable {
-    case lightBlue, white, rainbow, multiGradient
+    case lightBlue, white, rainbow
     
     // 获取样式对应的颜色
     var colors: (main: Color, secondary: Color) {
@@ -339,14 +339,20 @@ enum BubbleStyle: Int, CaseIterable {
             return (.white.opacity(0.8), .gray.opacity(0.2))
         case .rainbow:
             return (.pink.opacity(0.7), .blue.opacity(0.4)) // 实际会在视图中使用彩虹渐变
-        case .multiGradient:
-            return (.purple.opacity(0.7), .orange.opacity(0.4)) // 实际会在视图中使用多色渐变
         }
     }
     
-    // 获取随机样式
+    // 获取随机样式，按照 lightBlue 40%，white 40%，rainbow 20% 的概率分布
     static var random: BubbleStyle {
-        return BubbleStyle.allCases.randomElement() ?? .lightBlue
+        let randomValue = Double.random(in: 0..<1.0)
+        
+        if randomValue < 0.4 {
+            return .lightBlue
+        } else if randomValue < 0.8 {
+            return .white
+        } else {
+            return .rainbow
+        }
     }
 }
 
@@ -354,6 +360,7 @@ enum BubbleStyle: Int, CaseIterable {
 struct BubbleView: View {
     let size: CGFloat
     @State private var animateScale = false
+    @State private var rotationAngle: Double = 0
     var style: BubbleStyle = .lightBlue // 默认浅蓝色样式
     
     var body: some View {
@@ -372,33 +379,46 @@ struct BubbleView: View {
                             )
                         )
                 case .rainbow:
-                    // 彩虹色使用彩虹色泡泡样式
-                    // 彩虹色使用渐变
+                    // 彩虹色使用更加混乱的渐变
                     Circle()
                         .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    .red,
-                                    .orange,
-                                    .yellow,
-                                    .green,
-                                    .blue,
-                                    .purple,
-                                    .pink.opacity(0.7)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                            AngularGradient(
+                                gradient: Gradient(colors: {
+                                    // 创建随机颜色数组
+                                    var colors: [Color] = [
+                                        .red.opacity(0.7),
+                                        .orange.opacity(0.7),
+                                        .yellow.opacity(0.7),
+                                        .green.opacity(0.7),
+                                        .blue.opacity(0.7),
+                                        .purple.opacity(0.7),
+                                        .pink.opacity(0.7),
+                                    ].shuffled()
+                                    
+                                    // 确保首尾颜色相同，形成无缝循环
+                                    colors.append(colors[0])
+                                    
+                                    return colors
+                                }()),
+                                center: .topLeading,
+                                angle: .degrees(rotationAngle)
                             )
                         )
-                case .multiGradient:
-                    // 渐变混合使用随机多色渐变
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.purple, .blue, .cyan, .mint, .green]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                        .overlay(
+                            Circle()
+                                .fill(
+                                    AngularGradient(
+                                        gradient: Gradient(colors: [
+                                            .clear,
+                                            .white.opacity(0.3),
+                                            .clear,
+                                            .white.opacity(0.2),
+                                            .clear
+                                        ]),
+                                        center: .topLeading,
+                                        angle: .degrees(rotationAngle)
+                                    )
+                                )
                         )
                 }
             }
@@ -411,14 +431,21 @@ struct BubbleView: View {
                     .fill(Color.white.opacity(0.3))
                     .frame(width: size * 0.2)
                     .offset(x: -size * 0.2, y: -size * 0.2)
+                    .blendMode(.plusLighter)
             )
             .shadow(color: style == .white ? .gray.opacity(0.5) : style.colors.main.opacity(0.5), radius: 10)
         }
         .frame(width: size, height: size)
         .scaleEffect(animateScale ? 1.1 : 1.0)
         .onAppear {
+            // 泡泡大小动画
             withAnimation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                 animateScale.toggle()
+            }
+            
+            // 渐变旋转动画
+            withAnimation(Animation.linear(duration: 16).repeatForever(autoreverses: false)) {
+                rotationAngle = 360
             }
         }
     }
